@@ -408,8 +408,9 @@ assert(markdown == html_to_md(md_to_html(markdown)))
 
 ## Install
 
-> 安装锁定在 0.1.5 tag（`https://github.com/pxwg/zhihu.nvim/archive/refs/tags/0.1.5.tar.gz`），
-> 不会跟随上游 HEAD。升级需要手动修改 rockspec 里的版本与 URL 后重装。
+> 从本 fork（`shijiezhiai/zhihu.nvim`）安装，跟随本 fork 的 `main`；上游 `pxwg/zhihu.nvim`
+> 不含本仓库的加固修复。要固定版本，先在本 fork 上打 tag，再把 rockspec 的 `source.url`
+> 换成该 tag 的 tarball。
 
 ### rocks.nvim
 
@@ -446,7 +447,7 @@ $ luarocks --lua-version 5.1 --local --tree ~/.local/share/nvim/rocks install zh
 
 ```lua
 return {
-  "pxwg/zhihu.nvim",
+  "shijiezhiai/zhihu.nvim",
   main = "zhihu",
 }
 ```
