@@ -23,7 +23,21 @@ end
 ---callback for BufReadCmd of a list uri
 ---@param list table
 function M.read_cb(list)
-  vim.api.nvim_buf_set_lines(0, 0, -1, true, list:get_lines())
+  -- a failed fetch must not surface as a raw BufReadCmd traceback: the user
+  -- would be left with an empty buffer and no reason
+  local ok, lines = pcall(list.get_lines, list)
+  if not ok then
+    vim.notify(lines, vim.log.levels.ERROR)
+    vim.api.nvim_buf_set_lines(0, 0, -1, true, {
+      "# zhihu 列表加载失败",
+      tostring(lines),
+      "检查登录态（cookies）后重新 :edit 本 URI",
+    })
+    vim.b.zhihu_list = list
+    vim.o.modifiable = false
+    return
+  end
+  vim.api.nvim_buf_set_lines(0, 0, -1, true, lines)
   vim.b.zhihu_list = list
   -- a list holds a snapshot of the api, editing it cannot mean anything
   vim.o.modifiable = false

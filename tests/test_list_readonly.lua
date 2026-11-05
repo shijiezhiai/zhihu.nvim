@@ -117,6 +117,31 @@ return {
     t.eq("open_entry without a uri edits nothing", #state.edits, 1)
     t.eq("open_entry without a uri says so", last(state.notifications).msg, "zhihu: 光标下没有知乎链接")
 
+    -- a failed fetch must show a readable page, not a raw BufReadCmd traceback
+    local FAILURE = "zhihu: 403 / code=10003 / 请求参数异常，请升级客户端后重试。"
+    local failing = {
+      get_lines = function() error(FAILURE, 0) end,
+    }
+    local notified, maps, wrote = #state.notifications, #state.mappings, #state.set_lines
+    local ok, raised = pcall(list.read_cb, failing)
+    t.eq("a failed fetch does not escape read_cb", ok, true)
+    t.eq("a failed fetch raises nothing", raised, nil)
+    t.eq("a failed fetch notifies exactly once", #state.notifications - notified, 1)
+    local note = state.notifications[#state.notifications]
+    t.eq("the failure is reported as an error", note.level, vim.log.levels.ERROR)
+    t.eq("the notification keeps the api message", note.msg, FAILURE)
+    t.ok("the notification carries the api code", note.msg:find("code=10003", 1, true) ~= nil)
+    t.eq("the failure page is written once", #state.set_lines - wrote, 1)
+    local page = state.set_lines[#state.set_lines].lines
+    t.eq("the page opens with a failure title", page[1], "# zhihu 列表加载失败")
+    t.eq("the page repeats the api message", page[2], FAILURE)
+    t.eq("the page points at the cookies", page[3], "检查登录态（cookies）后重新 :edit 本 URI")
+    t.eq("the page is at least three lines", #page, 3)
+    t.eq("the failure page is read only", vim.o.modifiable, false)
+    t.eq("the failure page is still a list buffer", vim.b.zhihu_list, failing)
+    t.eq("the failure page installs no <CR>", #state.mappings, maps)
+    t.eq("the failure page sends no request", package.loaded["requests"], nil)
+
     t.eq("the nvim side loads no http client", package.loaded["requests"], nil)
   end,
 }
