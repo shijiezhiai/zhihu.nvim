@@ -215,6 +215,24 @@ typst 图片插入要求图片必须在本地。然而知乎要求所有图片�
 
 - [vim-smartinput-extra](https://github.com/Vim-cn/vim-smartinput-extra)
 
+## :books: 浏览答案与专栏
+
+问题的答案列表和专栏的文章列表也可以直接 `:edit`，只要把知乎网页 URL 开头的 `https://` 换成 `zhihu://`：
+
+```bash
+# 问题的前 20 个答案
+:edit zhihu://www.zhihu.com/question/question_id/answers.md
+
+# 从第 41 个答案开始
+:edit zhihu://www.zhihu.com/question/question_id/answers-40.md
+
+# 专栏的文章列表
+:edit zhihu://www.zhihu.com/column/column_slug.md
+:edit zhihu://www.zhihu.com/column/column_slug-20.md
+```
+
+列表缓冲区是只读的：写入只会给出一条警告，不会发出任何请求。每一条答案或文章下面都带一个 `zhihu://` 链接，
+光标停在那一行按 `<CR>` 就能打开它；列表末尾的 `[上一页]` 和 `[下一页]` 同样可以 `:edit` 来翻页。
 ## :envelope_with_arrow: 内容发布
 
 在编辑器预览的插件：
