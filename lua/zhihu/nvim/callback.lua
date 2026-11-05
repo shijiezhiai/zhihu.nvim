@@ -2,12 +2,19 @@
 ---@diagnostic disable: undefined-global
 -- luacheck: ignore 111 113
 local Article = require 'zhihu.article'.Article
+local List = require 'zhihu.list'.List
 local M = {}
 
 ---callback for BufReadCmd
 function M.read_cb()
   vim.o.buftype = "acwrite"
   vim.cmd "filetype detect"
+
+  local list = List.from_url(vim.api.nvim_buf_get_name(0))
+  if list then
+    require 'zhihu.nvim.list'.read_cb(list)
+    return
+  end
 
   local article = Article:from_url(vim.api.nvim_buf_get_name(0))
   local lines = article:get_lines()
@@ -22,6 +29,12 @@ end
 
 ---callback for BufWriteCmd
 function M.write_cb()
+  -- a list buffer records itself in vim.b when it is read; writing it back must
+  -- never fall through to the article path, which would publish rendered lines
+  if vim.b.zhihu_list then
+    require 'zhihu.nvim.list'.write_cb()
+    return
+  end
   if vim.o.modifiable == false then
     return
   end
