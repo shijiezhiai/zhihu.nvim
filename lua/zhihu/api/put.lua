@@ -2,7 +2,6 @@
 local requests = require "requests"
 local sha1 = require 'sha1'
 local base64 = require 'vim.base64'
-local dumps_cookies = require 'zhihu.api'.dumps_cookies
 local M = {
   string_to_sign = [[PUT
 
@@ -32,7 +31,7 @@ function M.API:new(api)
   setmetatable(api, {
     __index = self
   })
-  api.headers.Cookie = dumps_cookies()
+  -- OSS authenticates with the Authorization signature, it never needs zhihu cookies
   return api
 end
 

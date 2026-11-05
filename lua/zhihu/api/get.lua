@@ -1,6 +1,6 @@
 --- download a zhihu article or answer
 local requests = require "requests"
-local dumps_cookies = require 'zhihu.api'.dumps_cookies
+local set_cookie_header = require 'zhihu.api'.set_cookie_header
 local M = {
   url = {
     image = "https://api.zhihu.com/images/%s",
@@ -31,7 +31,6 @@ function M.API:new(api)
   setmetatable(api, {
     __index = self
   })
-  api.headers.Cookie = dumps_cookies()
   return api
 end
 
@@ -64,6 +63,7 @@ end
 ---request
 ---@return table
 function M.API:request()
+  set_cookie_header(self)
   return requests.get(self)
 end
 

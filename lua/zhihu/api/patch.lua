@@ -1,6 +1,7 @@
 --- patch a zhihu article
 local requests = require "requests"
 local API = require 'zhihu.api.post'.API
+local set_cookie_header = require 'zhihu.api'.set_cookie_header
 local M = {
   API = {
     url = "https://zhuanlan.zhihu.com/api/articles/%s/draft",
@@ -46,6 +47,7 @@ end
 ---request
 ---@return table
 function M.API:request()
+  set_cookie_header(self)
   return requests.patch(self)
 end
 
