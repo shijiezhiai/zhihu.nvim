@@ -24,6 +24,14 @@ jobs:
         with:
           toolchain: stable
           override: true
+      - name: Install lua and neovim
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends luajit neovim
+      - name: Run lua tests
+        run: luajit tests/run.lua
+      - name: Run neovim headless tests
+        run: nvim --headless -u NONE -l tests/test_auth_persist.lua
       - name: Run tests
         run: |
           cargo test --features=lua51 --manifest-path=packages/auth/Cargo.toml

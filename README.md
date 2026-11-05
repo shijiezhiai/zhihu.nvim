@@ -452,6 +452,20 @@ return {
 }
 ```
 
+## Tests
+
+The regression tests run without luarocks, busted or any plugin dependency: they load the real modules from `lua/` and stub only the rocks that are not installed.
+
+```sh
+# article publish guard, cookie scoping, auth cache: plain luajit, no rocks needed
+luajit tests/run.lua
+
+# cookie file permissions (0700 dir / 0600 file) need the real vim.uv
+nvim --headless -u NONE -l tests/test_auth_persist.lua
+```
+
+`tests/run.lua` discovers `tests/test_*.lua`, prints one PASS/FAIL/SKIP line per assertion and exits non-zero on any failure. Files whose first lines carry `-- needs: nvim` are run by the runner through `nvim --headless` automatically. `luajit tests/run.lua <substring>` runs a single file.
+
 ## Similar Projects
 
 - [zhihu_obsidian](https://github.com/dongguaguaguagua/zhihu_obsidian)
