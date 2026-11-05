@@ -27,6 +27,16 @@
 - 谷歌浏览器： `~/.config/google-chrome/Default/Cookies`
 - 调试： `~/.local/state/nvim/cookies.json`
 
+从浏览器读到的 cookies 默认**不会**落盘：上面的 `cookies.json`
+（macOS 为 `~/Library/Application Support/nvim/cookies.json`）只在显式开启持久化后才会生成，
+写入时文件权限为 `0600`、父目录为 `0700`：
+
+```lua
+require 'zhihu'.setup {
+    auth = { persist = true }
+}
+```
+
 覆盖根据优先级找到的 cookies 是可行的。对于在不同浏览器登录不同的知乎账户的用户，
 可以强行指定用谷歌浏览器 cookies 覆盖自动搜索到的 cookies:
 

@@ -3,7 +3,9 @@
 local Auth = require 'auth.chained'.Auth
 local M = {
   Auth = {
-    cookies_map = {}
+    cookies_map = {},
+    ---browser cookies stay off disk until the user opts in via `zhihu.setup`
+    persist = false,
   }
 }
 
@@ -28,7 +30,9 @@ setmetatable(M.Auth, {
 function M.Auth:get_cookies(host)
   if self.cookies_map[host] == nil then
     self.cookies_map[host] = self.auth:get_cookies(host)
-    self:set_cookies(host, self.cookies_map[host])
+    if self.persist then
+      self:set_cookies(host, self.cookies_map[host])
+    end
   end
   return self.cookies_map[host]
 end

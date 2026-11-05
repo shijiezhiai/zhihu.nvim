@@ -1,5 +1,6 @@
 ---get cookies from json cache
 ---@module auth.json
+local uv = vim.uv or vim.loop
 local fs = require 'vim.fs'
 local json = require 'vim.json'
 local PlatformDirs = require 'platformdirs'.PlatformDirs
@@ -38,24 +39,36 @@ function M.Auth:get_cookies(host)
   return Cookies(cookies)
 end
 
+---create the cache directory as owner-only, cookies must not be readable by others
+---@param dir string
+local function make_private_dir(dir)
+  vim.fn.mkdir(dir, "p")
+  uv.fs_chmod(dir, 448) -- 0700
+end
+
 ---add cookies to cache
 ---@param host string The host for which to retrieve cookies.
 ---@param cookies table<string, string> cookies A table where keys are cookie names and values are cookie values for the specified host.
 ---@return boolean
 function M.Auth:set_cookies(host, cookies)
-  local f = io.open(self.path, "w+")
+  local data = {}
+  local old = io.open(self.path)
+  if old then
+    local text = old:read "*a"
+    old:close()
+    if text ~= "" then
+      data = json.decode(text)
+    end
+  end
+  data[host] = cookies
+  make_private_dir(fs.dirname(self.path))
+  local f = io.open(self.path, "w")
   if f == nil then
     return false
   end
-  local text = f:read "*a"
-  local data = {}
-  if text ~= "" then
-    data = json.decode(text)
-  end
-  data[host] = cookies
-  text = json.encode(data)
-  f:write(text)
+  f:write(json.encode(data))
   f:close()
+  uv.fs_chmod(self.path, 384) -- 0600
   return true
 end
 

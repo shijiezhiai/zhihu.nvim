@@ -12,6 +12,8 @@ function M.setup(opts)
   -- luacheck: ignore 111 113
   ---@diagnostic disable: undefined-global
   M.opts = vim.tbl_extend("force", M.opts, opts or {})
+  local auth = M.opts.auth or {}
+  require 'zhihu.api'.auth.persist = auth.persist == true
 end
 
 ---override default value, only run once
