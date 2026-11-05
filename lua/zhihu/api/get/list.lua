@@ -9,6 +9,14 @@ local M = {
     answers = "https://www.zhihu.com/api/v4/questions/%s/answers",
     articles = "https://www.zhihu.com/api/v4/columns/%s/items",
   },
+  ---the default v4 field set is too narrow for a list: without include the
+  ---excerpt, author and counters come back missing. content is left out on
+  ---purpose, a list page has no use for the bodies.
+  ---@type table<string, string>
+  include = {
+    answers = "data[*].excerpt,author.name,voteup_count,comment_count,question.id,question.title",
+    articles = "data[*].title,excerpt,author.name,voteup_count,comment_count",
+  },
   API = {
     url = "",
     headers = {
@@ -40,8 +48,11 @@ setmetatable(M.API, {
 ---@return table api
 function M.API.from_list(list)
   local api = {
-    url = ("%s?offset=%d&limit=%d"):format(
-      M.url[list.kind]:format(list.id), list.offset or 0, M.page_size),
+    url = ("%s?include=%s&offset=%d&limit=%d"):format(
+      M.url[list.kind]:format(list.id),
+      M.include[list.kind],
+      list.offset or 0,
+      M.page_size),
   }
   return M.API(api)
 end
