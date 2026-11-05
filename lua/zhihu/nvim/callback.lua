@@ -33,7 +33,13 @@ function M.write_cb()
     -- nothing need to be updated
     return
   end
-  local error = article:write()
+  local error, aborted = article:write()
+  if aborted then
+    -- keep the buffer dirty so the user can retry the write
+    article.root = nil
+    vim.b.article = article
+    return
+  end
   if error then
     vim.notify(error, vim.log.levels.ERROR)
   else

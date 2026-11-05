@@ -20,6 +20,7 @@ local M = {
     draft_type = "normal",
     disclaimer_status = "closed",
     disclaimer_type = "none",
+    confirm_publish = true,
     thank_inviter_status = "close",
     thank_inviter = "",
     reshipment_settings = "allowed",
@@ -127,12 +128,32 @@ function M.Article:from_html(html)
   return self(article)
 end
 
+---ask before overwriting content that is already published, writing to a live
+---article by accident is not something undo can fix
+---@return boolean
+function M.Article:confirm_overwrite()
+  if not self.confirm_publish then
+    return true
+  end
+  if #vim.api.nvim_list_uis() == 0 then
+    vim.notify("zhihu: refusing to overwrite published content without a confirmation prompt",
+      vim.log.levels.WARN)
+    return false
+  end
+  return vim.fn.confirm(("Overwrite the published content of %s?"):format(tostring(self.title)), "&Yes\n&No", 2,
+    "Question") == 1
+end
+
 ---write an article or answer
 ---@param publish boolean?
 ---@return string? error
+---@return boolean? aborted true when the overwrite confirmation was declined
 function M.Article:write(publish)
   if publish == nil then
     publish = self.disclaimer_type and self.disclaimer_status and true
+  end
+  if publish and not self:confirm_overwrite() then
+    return nil, true
   end
   if self.question_id == nil and self.itemId == nil then
     local Post = require 'zhihu.api.post.article'.API
