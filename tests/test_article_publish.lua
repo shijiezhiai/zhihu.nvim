@@ -8,7 +8,7 @@ end
 local REPO = repo_root()
 package.path = REPO .. "/lua/?.lua;" .. REPO .. "/lua/?/init.lua;" .. package.path
 
-local state = { confirms = 0, confirm_answer = 2, notifies = {}, uis = 1, calls = {} }
+local state = { confirms = 0, confirm_answer = 2, notifies = {}, uis = 1, calls = {}, buf_reads = 0 }
 local json_state = { publish_question = nil }
 
 local function root_node(text)
@@ -101,7 +101,13 @@ package.preload["zhihu.api.post.publish"] = function()
 end
 
 vim = {
+  o = { modifiable = true, modified = true, buftype = "" },
+  b = {},
   api = {
+    nvim_buf_get_lines = function()
+      state.buf_reads = state.buf_reads + 1
+      return { "# heading", "body" }
+    end,
     nvim_list_uis = function()
       local uis = {}
       for i = 1, state.uis do
@@ -139,8 +145,29 @@ local function reset(uis)
   state.notifies = {}
   state.uis = uis or 1
   state.calls = {}
+  state.buf_reads = 0
   json_state.publish_question = nil
 end
+
+---the state read_cb leaves behind: an article without root, buffer text pending
+local function reset_buffer(fields)
+  vim.o.modifiable = true
+  vim.o.modified = true
+  vim.b = { article = fields or { itemId = "42" } }
+  state.buf_reads = 0
+end
+
+local function error_notifies()
+  local n = 0
+  for _, item in ipairs(state.notifies) do
+    if item.level == vim.log.levels.ERROR then
+      n = n + 1
+    end
+  end
+  return n
+end
+
+local write_cb = require("zhihu.nvim.callback").write_cb
 
 return {
   name = "article publish guard",
@@ -219,8 +246,38 @@ return {
     t.eq("draft only write patches the draft", state.calls.patch, 1)
     t.eq("draft only write does not publish", state.calls.publish, nil)
 
-    t.skip("buffer level ':w' abort keeps 'modified' (lua/zhihu/nvim/callback.lua:36-42) is not exercisable: "
-      .. "write_cb calls Article(vim.b.article) after read_cb cleared root, and Article:new (lua/zhihu/article.lua:71-72) "
-      .. "indexes article.root before it can reach the abort branch")
+    -- 10. buffer level ':w' on published content, answer No: the buffer must stay dirty
+    reset()
+    reset_buffer()
+    write_cb()
+    t.eq("declined buffer write reads the buffer", state.buf_reads, 1)
+    t.eq("declined buffer write confirms once", state.confirms, 1)
+    t.eq("declined buffer write keeps the buffer modified", vim.o.modified, true)
+    t.eq("declined buffer write publishes nothing", state.calls.publish, nil)
+    t.eq("declined buffer write patches nothing", state.calls.patch, nil)
+    -- .root would fall back through __index to the class default, so check the own field
+    t.eq("declined buffer write drops the article's own root", rawget(vim.b.article, "root"), nil)
+    t.eq("declined buffer write reports no error", error_notifies(), 0)
+    t.eq("declined buffer write keeps the article id", vim.b.article.itemId, "42")
+
+    -- 11. answering Yes runs the write and only then clears the modified flag
+    reset()
+    state.confirm_answer = 1
+    reset_buffer()
+    write_cb()
+    t.eq("accepted buffer write confirms once", state.confirms, 1)
+    t.eq("accepted buffer write clears modified", vim.o.modified, false)
+    t.eq("accepted buffer write publishes", state.calls.publish, 1)
+    t.eq("accepted buffer write reports no error", error_notifies(), 0)
+
+    -- 12. a non modifiable buffer is left alone before anything is read
+    reset()
+    reset_buffer()
+    vim.o.modifiable = false
+    write_cb()
+    t.eq("unmodifiable buffer write is a no-op", state.buf_reads, 0)
+    t.eq("unmodifiable buffer write does not confirm", state.confirms, 0)
+    t.eq("unmodifiable buffer write keeps modified", vim.o.modified, true)
+    t.eq("unmodifiable buffer write calls no api", state.calls.publish, nil)
   end,
 }
