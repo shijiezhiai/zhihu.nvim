@@ -407,6 +407,9 @@ assert(markdown == html_to_md(md_to_html(markdown)))
 
 ## Install
 
+> 安装锁定在 0.1.5 tag（`https://github.com/pxwg/zhihu.nvim/archive/refs/tags/0.1.5.tar.gz`），
+> 不会跟随上游 HEAD。升级需要手动修改 rockspec 里的版本与 URL 后重装。
+
 ### rocks.nvim
 
 #### Command style

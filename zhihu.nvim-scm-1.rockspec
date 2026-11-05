@@ -9,7 +9,9 @@ description = {
 package = description.homepage:match('/([^/]+)/?$')
 version = 'scm-1'
 source = {
-  url = description.homepage:gsub('https', 'git')
+  -- pinned to the 0.1.5 tag (commit 9f2b3309eed542c1a458dce058e7a5a459db8331):
+  -- installing must not silently follow upstream HEAD
+  url = 'https://github.com/pxwg/zhihu.nvim/archive/refs/tags/0.1.5.tar.gz',
 }
 
 build = {
