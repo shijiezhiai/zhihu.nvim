@@ -59,7 +59,11 @@ end
 ---@return Article article
 function M.Article:new(article)
   article = article or {}
-  article.isPublished = article.itemId ~= nil
+  -- data-zop carries isPublished; itemId only proves the article exists on the
+  -- server, which is also true for an unpublished draft
+  if type(article.isPublished) ~= "boolean" then
+    article.isPublished = article.itemId ~= nil
+  end
   setmetatable(article, {
     __tostring = self.tostring,
     __index = self
@@ -130,6 +134,7 @@ end
 
 ---ask before overwriting content that is already published, writing to a live
 ---article by accident is not something undo can fix
+---only asked for published content, a first write must never prompt
 ---@return boolean
 function M.Article:confirm_overwrite()
   if not self.confirm_publish then
@@ -152,7 +157,7 @@ function M.Article:write(publish)
   if publish == nil then
     publish = self.disclaimer_type and self.disclaimer_status and true
   end
-  if publish and not self:confirm_overwrite() then
+  if publish and self.isPublished and not self:confirm_overwrite() then
     return nil, true
   end
   if self.question_id == nil and self.itemId == nil then
