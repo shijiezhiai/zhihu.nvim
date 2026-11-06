@@ -186,6 +186,39 @@ function M.List:fetch()
   return decoded
 end
 
+---fetch one page in the background: the body arrives in a callback so the
+---caller keeps its event loop, and rendering stays with the caller
+---@param cb fun(rows: table?, err: string?)
+function M.List:fetch_async(cb)
+  local API = require 'zhihu.api.get.list'.API
+  local api = API.from_list(self)
+  require('zhihu.api').set_cookie_header(api)
+  require('zhihu.nvim.http').get(api.url, api.headers, function(err, text)
+    if err then
+      return cb(nil, err)
+    end
+    local has_json, json = pcall(require, "vim.json")
+    if not has_json then
+      return cb(nil, "zhihu: 后台解析需要 vim.json")
+    end
+    local ok, decoded = pcall(json.decode, text or "")
+    if not ok or type(decoded) ~= "table" then
+      return cb(nil, "zhihu: 接口返回的不是 JSON")
+    end
+    -- the curl child knows the body but not the status, so a status-less check
+    -- treats a decoded error object as the failure it is
+    local reason = M.List.error_of(200, decoded)
+    if reason == nil and decoded.data == nil then
+      local message = type(decoded.error) == "table" and decoded.error.message or "响应里没有 data"
+      reason = "zhihu: 请求失败 / " .. tostring(message)
+    end
+    if reason then
+      return cb(nil, reason)
+    end
+    cb(self:parse(decoded))
+  end)
+end
+
 ---@param list table
 ---@param item table
 ---@return table row
