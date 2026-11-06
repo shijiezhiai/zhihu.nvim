@@ -1,7 +1,7 @@
 ---Convert HTML content to Markdown
 ---@module zfh.generator.markdown
 local htmlEntities = require 'htmlEntities'
-local fn = require 'vim.fn'
+local fn = vim.fn
 
 local settext = require 'zfh.generator'.settext
 local find = require 'zfh.generator'.find
@@ -214,7 +214,13 @@ function M.table:convert_(node)
     end
     c = c .. self.template:format(table.concat(tds, " | "))
     if i == 1 then
-      c = c .. self.template:format(table.concat(fn.strwidth(tds), " | "))
+      -- the row under the header is the separator: one dash run per column,
+      -- never the cell text itself
+      local dashes = {}
+      for index, cell in ipairs(tds) do
+        dashes[index] = string.rep("-", math.max(3, fn.strwidth(cell)))
+      end
+      c = c .. self.template:format(table.concat(dashes, " | "))
     end
   end
   c = c .. "\n"

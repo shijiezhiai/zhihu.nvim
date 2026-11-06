@@ -3,7 +3,7 @@
 local parse = require 'htmlparser'.parse
 local htmlEntities = require 'htmlEntities'
 local deepcopy = require 'vim.shared'.deepcopy
-local fn = require 'vim.fn'
+local fn = vim.fn
 local M = {
   Generator = {
   },

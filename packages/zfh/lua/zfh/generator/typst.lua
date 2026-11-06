@@ -1,7 +1,7 @@
 ---Convert HTML content to Typst
 ---@module zfh.generator.typst
 local htmlEntities = require 'htmlEntities'
-local fn = require 'vim.fn'
+local fn = vim.fn
 
 local settext = require 'zfh.generator'.settext
 local find = require 'zfh.generator'.find

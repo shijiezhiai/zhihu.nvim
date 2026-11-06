@@ -1,7 +1,7 @@
 ---use pandoc/typst to convert HTML
 ---@module zfh.translator.cmd
 local CMDTranslator = require 'zfh.translator'.CMDTranslator
-local uv = require 'vim.uv'
+local uv = vim.uv
 local devnull = "/dev/null"
 if uv.os_uname().sysname == "Windows" then
   devnull = "null"

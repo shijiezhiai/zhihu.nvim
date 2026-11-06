@@ -2,7 +2,7 @@
 ---@module zfh.translator
 -- luacheck: ignore 111 113
 ---@diagnostic disable: undefined-global
-local fn = require 'vim.fn'
+local fn = vim.fn
 local M = {
   Translator = {
     translators = {

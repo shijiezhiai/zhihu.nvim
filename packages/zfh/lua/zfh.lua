@@ -3,7 +3,11 @@
 local Translator = require 'zfh.translator'.Translator
 local html_to_pandoc = require 'zfh.translator.cmd'.readers.pandoc
 local pandoc_to_html = require 'zfh.translator.cmd'.writers.pandoc
-local compile = require 'typst'.compile
+-- typst is only needed to publish a typst document; loading it here would make every
+-- read path require the rock as well
+local function compile_typst(text)
+  return require('typst').compile { source = text, format = "html" }
+end
 local html_to_md = require "zfh.generator.markdown".generator
 local html_to_typst = require "zfh.generator.typst".generator
 local md_to_html = require "markdown_to_html".md_to_html
@@ -24,9 +28,7 @@ local M = {
         return ...
       end,
       markdown = md_to_html,
-      typst = function(text)
-        return compile { source = text, format = "html" }
-      end,
+      typst = compile_typst,
       _ = pandoc_to_html,
     }
   },
