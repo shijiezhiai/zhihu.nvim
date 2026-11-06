@@ -49,17 +49,11 @@ jobs:
       - name: Generate extra.rockspec
         run: |
           perl -00ne 'print if $. == 2' ./*-scm-1.rockspec > extra.rockspec
-      - name: Pin the rockspec to the tag
-        if: startsWith(github.ref, 'refs/tags/') && env.LUAROCKS_API_KEY == ''
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          sed -i "s/^version = 'scm-1'/version = '${version}-1'/" ./*-scm-1.rockspec
-      - uses: lumen-oss/gh-actions-lux@v1
-        if: env.LUAROCKS_API_KEY == ''
-        with:
-          version: latest
+      # without the publishing key this action still writes the rockspec and the
+      # lux project, but its upload fails: keep the rest of the job running so the
+      # release still gets built, and let only the last step stay red
       - uses: lumen-oss/luarocks-tag-release@v9
-        if: env.LUAROCKS_API_KEY != ''
+        continue-on-error: ${{ env.LUAROCKS_API_KEY == '' }}
         env:
           LUX_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
           SQLITE_LIBDIR: /usr/lib/x86_64-linux-gnu
@@ -76,10 +70,11 @@ jobs:
           path: |
             *.rock
       - uses: softprops/action-gh-release@v3
-        if: startsWith(github.ref, 'refs/tags/')
+        if: always() && startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             *.rock
+          fail_on_unmatched_files: false
       - name: Upload
         if: startsWith(github.ref, 'refs/tags/') && env.LUAROCKS_API_KEY != ''
         run: |
