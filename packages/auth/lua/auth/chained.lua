@@ -1,6 +1,6 @@
 ---get cookies from many auths by an order
 ---@module auth.chained
-local fn = require 'vim.fn'
+local fn = vim.fn
 local Cookies = require 'auth.auth'.Cookies
 local M = {
   Auth = {
@@ -18,10 +18,17 @@ function M.Auth:new(auth)
       'auth.chrome',
       'auth.json',
     } do
-      local Auth = require(name).Auth
-      local _auth = Auth()
-      if _auth.set_cookies or fn.filereadable(_auth.path) == 1 then
-        table.insert(auth.auths, _auth)
+      -- a backend can be unusable here (a missing rock such as lsqlite3, a browser
+      -- that is not installed, a denied keychain read); skip it rather than failing
+      -- the whole chain
+      local loaded, Auth = pcall(function()
+        return require(name).Auth
+      end)
+      if loaded then
+        local ok, _auth = pcall(Auth)
+        if ok and (_auth.set_cookies or fn.filereadable(_auth.path) == 1) then
+          table.insert(auth.auths, _auth)
+        end
       end
     end
   end

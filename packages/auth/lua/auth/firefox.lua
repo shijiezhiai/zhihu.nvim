@@ -1,6 +1,6 @@
 ---get cookies from firefox cookies database
 ---@module auth.firefox
-local uv = require 'vim.uv'
+local uv = vim.uv
 local uri = require 'vim.uri'
 local fs = require 'vim.fs'
 local lsqlite3 = require "lsqlite3"

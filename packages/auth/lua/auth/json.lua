@@ -35,7 +35,19 @@ function M.Auth:get_cookies(host)
     text = f:read "*a"
     f:close()
   end
-  local cookies = json.decode(text)[host]
+  local decoded = json.decode(text) or {}
+  -- a cookie cached for the registrable domain still applies to its subdomains,
+  -- the same way Chrome sends it
+  local cookies = decoded[host]
+  if cookies == nil then
+    for key, value in pairs(decoded) do
+      local domain = key:gsub("^%.", "")
+      if key:sub(1, 1) == "." and (host == domain or host:sub(-#domain - 1) == "." .. domain) then
+        cookies = value
+        break
+      end
+    end
+  end
   return Cookies(cookies)
 end
 

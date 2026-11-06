@@ -1,8 +1,8 @@
 ---get cookies from chrome cookies database
 ---@module auth.chrome
-local uv = require 'vim.uv'
+local uv = vim.uv
 local fs = require 'vim.fs'
-local fn = require 'vim.fn'
+local fn = vim.fn
 local PlatformDirs = require 'platformdirs'.PlatformDirs
 local chrome_cookie = require 'chrome_cookie'
 local Cookies = require 'auth.auth'.Cookies
@@ -49,12 +49,9 @@ setmetatable(M.Auth, {
 ---@param host string The host for which to retrieve cookies.
 ---@return table<string, string> cookies A table where keys are cookie names and values are cookie values for the specified host.
 function M.Auth:get_cookies(host)
-  local cookies = chrome_cookie.get_cookies_for_host(self.path, self.password, host)
-  for k, v in pairs(cookies) do
-    -- HACK: Remove the first 56 rubbish characters from the cookie value
-    cookies[k] = v:sub(57)
-  end
-  return Cookies(cookies)
+  -- the rust side already strips the sha256(host_key) prefix Chrome >= 130 prepends,
+  -- so the values arrive intact here
+  return Cookies(chrome_cookie.get_cookies_for_host(self.path, self.password, host))
 end
 
 return M

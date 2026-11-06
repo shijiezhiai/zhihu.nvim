@@ -13,6 +13,7 @@ use pbkdf2::{pbkdf2, pbkdf2_hmac};
 use rusqlite::Connection;
 use serde_json::Value;
 use sha1::Sha1;
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
 use std::{error::Error, fmt, process::Command};
@@ -163,8 +164,19 @@ pub fn decrypt_chrome_cookie_macos_legacy(
   encrypted_value: &[u8],
   password: &str,
 ) -> Result<Option<String>, ChromeCookieError> {
+  Ok(
+    decrypt_chrome_cookie_macos_raw(encrypted_value, password)?
+      .as_deref()
+      .and_then(|raw| to_cookie_string(raw, None)),
+  )
+}
+
+/// macOS 明文（已去 PKCS#7 padding）。Chrome >= 130 会在明文前置 32 字节 sha256(host_key)。
+pub fn decrypt_chrome_cookie_macos_raw(
+  encrypted_value: &[u8],
+  password: &str,
+) -> Result<Option<Vec<u8>>, ChromeCookieError> {
   const PREFIX: &[u8] = b"v10";
-  const SALT: &[u8] = b"saltysalt";
   const IV: [u8; 16] = [b' '; 16];
   const ITERATIONS: u32 = 1003;
 
@@ -175,19 +187,38 @@ pub fn decrypt_chrome_cookie_macos_legacy(
   let mut key = [0u8; 16];
   pbkdf2::<Hmac<Sha1>>(password.as_bytes(), SALT, ITERATIONS, &mut key);
 
-  let encrypted_data = &encrypted_value[PREFIX.len()..];
-
   let cipher = Aes128Cbc::new_from_slices(&key, &IV)
     .map_err(|_| ChromeCookieError::DecryptionFailed("AES-CBC init failed".into()))?;
   let decrypted = cipher
-    .decrypt_vec(encrypted_data)
+    .decrypt_vec(&encrypted_value[PREFIX.len()..])
     .map_err(|_| ChromeCookieError::DecryptionFailed("AES-CBC decrypt failed".into()))?;
 
-  let cookie_str = String::from_utf8_lossy(&decrypted).to_string();
-  if cookie_str.is_empty() {
-    Ok(None)
+  Ok(Some(decrypted))
+}
+
+/// 去掉 Chrome >= 130 加在明文前的 sha256(host_key) 前缀。
+pub fn strip_host_prefix<'a>(raw: &'a [u8], host_key: &str) -> &'a [u8] {
+  let want = Sha256::digest(host_key.as_bytes());
+  if raw.len() > 32 && raw[..32] == want[..] {
+    &raw[32..]
   } else {
-    Ok(Some(cookie_str))
+    raw
+  }
+}
+
+/// 明文转 cookie 字符串；给了 host_key 就先剥前缀。
+pub fn to_cookie_string(raw: &[u8], host_key: Option<&str>) -> Option<String> {
+  let body = match host_key {
+    Some(host) => strip_host_prefix(raw, host),
+    None => raw,
+  };
+  let text = String::from_utf8_lossy(body)
+    .trim_end_matches(|c| c == '\0' || c == '`')
+    .to_string();
+  if text.is_empty() {
+    None
+  } else {
+    Some(text)
   }
 }
 
@@ -205,6 +236,18 @@ pub fn decrypt_chrome_cookie_linux(
   encrypted_value: &[u8],
   password: &str,
 ) -> Result<Option<String>, ChromeCookieError> {
+  Ok(
+    decrypt_chrome_cookie_linux_raw(encrypted_value, password)?
+      .as_deref()
+      .and_then(|raw| to_cookie_string(raw, None)),
+  )
+}
+
+/// Linux 明文（已去 PKCS#7 padding），同样带 Chrome >= 130 的 sha256(host_key) 前缀。
+pub fn decrypt_chrome_cookie_linux_raw(
+  encrypted_value: &[u8],
+  password: &str,
+) -> Result<Option<Vec<u8>>, ChromeCookieError> {
   // Chrome Linux uses "saltysalt" as salt, 1 iteration, 16-byte key, IV of all spaces
   let iv = [b' '; 16];
   let key = derive_linux_key(password);
@@ -217,27 +260,14 @@ pub fn decrypt_chrome_cookie_linux(
   if prefix != b"v10" && prefix != b"v11" {
     return Ok(None);
   }
-  let encrypted_data = &encrypted_value[3..];
 
   let cipher = Aes128Cbc::new_from_slices(&key, &iv)
     .map_err(|_| ChromeCookieError::DecryptionFailed("AES-CBC init failed".into()))?;
-
   let decrypted = cipher
-    .decrypt_vec(encrypted_data)
+    .decrypt_vec(&encrypted_value[3..])
     .map_err(|_| ChromeCookieError::DecryptionFailed("AES-CBC decrypt failed".into()))?;
 
-  let cookie_str = String::from_utf8_lossy(&decrypted);
-
-  // Remove trailing nulls or backticks (if any)
-  let cleaned_cookie = cookie_str
-    .trim_end_matches(|c| c == '\0' || c == '`')
-    .to_string();
-
-  if cleaned_cookie.is_empty() {
-    Ok(None)
-  } else {
-    Ok(Some(cleaned_cookie))
-  }
+  Ok(Some(decrypted))
 }
 
 /// Decrypt cookies for macOS and Linux
@@ -245,17 +275,41 @@ pub fn decrypt_chrome_cookie(
   encrypted_value: &[u8],
   password: &str,
 ) -> Result<Option<String>, ChromeCookieError> {
+  Ok(
+    decrypt_chrome_cookie_raw(encrypted_value, password)?
+      .as_deref()
+      .and_then(|raw| to_cookie_string(raw, None)),
+  )
+}
+
+/// 平台对应的明文解密（未剥 host 前缀）
+pub fn decrypt_chrome_cookie_raw(
+  encrypted_value: &[u8],
+  password: &str,
+) -> Result<Option<Vec<u8>>, ChromeCookieError> {
   #[cfg(target_os = "macos")]
   {
-    decrypt_chrome_cookie_macos_legacy(encrypted_value, password)
+    decrypt_chrome_cookie_macos_raw(encrypted_value, password)
   }
   #[cfg(target_os = "linux")]
   {
-    decrypt_chrome_cookie_linux(encrypted_value, password)
+    decrypt_chrome_cookie_linux_raw(encrypted_value, password)
   }
   #[cfg(not(any(target_os = "macos", target_os = "linux")))]
   {
     Err(ChromeCookieError::UnsupportedPlatform)
+  }
+}
+
+/// Chrome stores a cookie set on the registrable domain under a leading dot
+/// (`.zhihu.com`) and still sends it to every subdomain (`www.zhihu.com`), while
+/// cookies set on the page host carry the bare host. Matching both forms is what
+/// makes the login cookie (`z_c0` on `.zhihu.com`) reach the request.
+pub fn cookie_host_matches(host_key: &str, host: &str) -> bool {
+  let host = host.trim_start_matches('.');
+  match host_key.strip_prefix('.') {
+    Some(domain) => host == domain || host.ends_with(&format!(".{domain}")),
+    None => host_key == host,
   }
 }
 
@@ -267,14 +321,22 @@ pub fn get_cookie_value(
 ) -> Result<Option<String>, ChromeCookieError> {
   let conn = Connection::open(cookie_path)?;
   let mut stmt = conn
-    .prepare("SELECT encrypted_value FROM cookies WHERE host_key LIKE ? AND name = ?")
+    .prepare("SELECT host_key, encrypted_value FROM cookies WHERE name = ?")
     .map_err(ChromeCookieError::SqliteError)?;
-  let mut rows = stmt.query([host, cookie_name])?;
-  let encrypted_value: Vec<u8> = match rows.next()? {
-    Some(row) => row.get(0)?,
-    None => return Ok(None),
-  };
-  decrypt_chrome_cookie_macos_legacy(&encrypted_value, password)
+  let mut rows = stmt.query([cookie_name])?;
+  while let Some(row) = rows.next()? {
+    let host_key: String = row.get(0)?;
+    if !cookie_host_matches(&host_key, host) {
+      continue;
+    }
+    let encrypted_value: Vec<u8> = row.get(1)?;
+    return Ok(
+      decrypt_chrome_cookie_raw(&encrypted_value, password)?
+        .as_deref()
+        .and_then(|raw| to_cookie_string(raw, Some(&host_key))),
+    );
+  }
+  Ok(None)
 }
 
 pub fn get_cookies_for_host(
@@ -283,20 +345,20 @@ pub fn get_cookies_for_host(
   host: &str,
 ) -> Result<Vec<(String, String)>, ChromeCookieError> {
   let conn = Connection::open(cookie_path)?;
-  let mut stmt = conn.prepare("SELECT name, encrypted_value FROM cookies WHERE host_key LIKE ?")?;
-  let mut rows = stmt.query([host])?;
+  let mut stmt = conn.prepare("SELECT host_key, name, encrypted_value FROM cookies")?;
+  let mut rows = stmt.query([])?;
   let mut result = Vec::new();
   while let Some(row) = rows.next()? {
-    let name: String = row.get(0)?;
-    let blob: Vec<u8> = row.get(1)?;
-    let val = if blob.len() > 3 {
-      match decrypt_chrome_cookie_macos_legacy(&blob, password)? {
-        Some(v) => v,
-        None => String::from_utf8_lossy(&blob).to_string(),
-      }
-    } else {
-      String::from_utf8_lossy(&blob).to_string()
-    };
+    let host_key: String = row.get(0)?;
+    if !cookie_host_matches(&host_key, host) {
+      continue;
+    }
+    let name: String = row.get(1)?;
+    let blob: Vec<u8> = row.get(2)?;
+    let val = decrypt_chrome_cookie_raw(&blob, password)?
+      .as_deref()
+      .and_then(|raw| to_cookie_string(raw, Some(&host_key)))
+      .unwrap_or_else(|| String::from_utf8_lossy(&blob).to_string());
     result.push((name, val));
   }
   Ok(result)
@@ -308,20 +370,17 @@ pub fn get_cookies(
   password: &str,
 ) -> Result<Vec<(String, String)>, ChromeCookieError> {
   let conn = Connection::open(cookie_path)?;
-  let mut stmt = conn.prepare("SELECT name, encrypted_value FROM cookies")?;
+  let mut stmt = conn.prepare("SELECT host_key, name, encrypted_value FROM cookies")?;
   let mut rows = stmt.query([])?;
   let mut result = Vec::new();
   while let Some(row) = rows.next()? {
-    let name: String = row.get(0)?;
-    let blob: Vec<u8> = row.get(1)?;
-    let val = if blob.len() > 3 {
-      match decrypt_chrome_cookie(&blob, password)? {
-        Some(v) => v,
-        none => String::from_utf8_lossy(&blob).to_string(),
-      }
-    } else {
-      String::from_utf8_lossy(&blob).to_string()
-    };
+    let host_key: String = row.get(0)?;
+    let name: String = row.get(1)?;
+    let blob: Vec<u8> = row.get(2)?;
+    let val = decrypt_chrome_cookie_raw(&blob, password)?
+      .as_deref()
+      .and_then(|raw| to_cookie_string(raw, Some(&host_key)))
+      .unwrap_or_else(|| String::from_utf8_lossy(&blob).to_string());
     result.push((name, val));
   }
   Ok(result)

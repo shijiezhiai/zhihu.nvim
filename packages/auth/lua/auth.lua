@@ -1,7 +1,7 @@
 ---get cookies.
 ---all modules under auth must provide a function `get_cookies()`.
 ---@module auth
-local fn = require 'vim.fn'
+local fn = vim.fn
 local M = {
   auths = {
     'auth.firefox',
