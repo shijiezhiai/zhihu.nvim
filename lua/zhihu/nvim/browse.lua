@@ -99,6 +99,15 @@ function M.truncate(text, width)
   return table.concat(out) .. "…"
 end
 
+---winbar and statusline read a bare % as the start of a format character, so a
+---title such as "5.52%" raises E539 the moment it is set
+---@param text string?
+---@return string
+function M.bar(text)
+  local line = tostring(text or ""):gsub("%c", " ")
+  return (line:gsub("%%", "%%%%"))
+end
+
 ---one row of the list
 ---@param index integer
 ---@param item table
@@ -364,7 +373,7 @@ local function update_winbar(view)
       tail = tail .. (", z %s %d 条仅浏览器"):format(view.show_dead and "折叠" or "展开", dead)
     end
   end
-  vim.wo[view.list_win].winbar = (" %s · %s "):format(view.label, tail)
+  vim.wo[view.list_win].winbar = M.bar((" %s · %s "):format(view.label, tail))
 end
 
 ---the reader picks its converter from the filetype of the current buffer, so the
@@ -550,7 +559,7 @@ local function update_preview(view)
   end
   ensure_preview(view)
   if vim.api.nvim_win_is_valid(view.prev_win) then
-    vim.wo[view.prev_win].winbar = (" %s · %s "):format(item.tag or "", M.truncate(item.title, 60))
+    vim.wo[view.prev_win].winbar = M.bar((" %s · %s "):format(item.tag or "", M.truncate(item.title, 60)))
   end
   -- a body on its way owns the pane: painting the card over it would throw the
   -- answer away the moment it lands
@@ -595,7 +604,7 @@ local function fetch_body(view)
   end
   local buf = ensure_preview(view)
   if vim.api.nvim_win_is_valid(view.prev_win) then
-    vim.wo[view.prev_win].winbar = (" %s · %s "):format(item.tag or "", M.truncate(item.title, 60))
+    vim.wo[view.prev_win].winbar = M.bar((" %s · %s "):format(item.tag or "", M.truncate(item.title, 60)))
   end
   local hit = remembered(item.uri)
   if hit then

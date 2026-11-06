@@ -104,5 +104,12 @@ return {
     t.eq("an entry that is gone has no row", browse.row_of(row_item, items, "zhihu://gone.md"), nil)
     t.eq("nothing remembered has no row", browse.row_of(row_item, items, nil), nil)
     t.eq("an empty list has no row", browse.row_of({}, items, "zhihu://a.md"), nil)
+
+    -- a winbar is a statusline: a bare % in a title is a format character and
+    -- nvim answers E539, which used to break the pane on any "5.52%" headline
+    t.eq("a percent in a title is escaped for the winbar", browse.bar("暴跌 5.52%"), "暴跌 5.52%%")
+    t.eq("every percent is escaped", browse.bar("%d%%"), "%%d%%%%")
+    t.eq("a control character becomes a space", browse.bar("a\tb"), "a b")
+    t.eq("nothing becomes nothing", browse.bar(nil), "")
   end,
 }
