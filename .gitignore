@@ -9,3 +9,5 @@ Cargo.lock
 
 *.so
 *.dylib
+.crates/
+.deps/
