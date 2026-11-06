@@ -54,6 +54,10 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           sed -i "s/^version = 'scm-1'/version = '${version}-1'/" ./*-scm-1.rockspec
+      - uses: lumen-oss/gh-actions-lux@v1
+        if: env.LUAROCKS_API_KEY == ''
+        with:
+          version: latest
       - uses: lumen-oss/luarocks-tag-release@v9
         if: env.LUAROCKS_API_KEY != ''
         env:
